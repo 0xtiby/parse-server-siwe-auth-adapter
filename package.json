@@ -1,0 +1,36 @@
+{
+  "name": "parse-server-siwe-auth-adapter",
+  "version": "1.0.0",
+  "description": "Parse server auth adapter to sign with ethereum ",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsup ./src"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xtiby/parse-server-siwe-auth-adapter.git"
+  },
+  "keywords": [
+    "parse",
+    "server",
+    "auth",
+    "adapter",
+    "siwe"
+  ],
+  "author": "0xtiby <https://github.com/0xtiby>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/0xtiby/parse-server-siwe-auth-adapter/issues"
+  },
+  "homepage": "https://github.com/0xtiby/parse-server-siwe-auth-adapter#readme",
+  "devDependencies": {
+    "@types/parse": "^3.0.9",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "parse-server": "^7.0.0",
+    "siwe": "^2.3.2"
+  }
+}
