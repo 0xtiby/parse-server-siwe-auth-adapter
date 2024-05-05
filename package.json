@@ -43,6 +43,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
+    "ethers": "^6.12.1",
     "parse-server": "^7.0.0",
     "siwe": "^2.3.2"
   }
