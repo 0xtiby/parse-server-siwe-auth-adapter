@@ -3,8 +3,6 @@
 
 import { SiweErrorType, SiweMessage, generateNonce } from "siwe";
 
-import Config from "parse-server/lib/Config"; //ts-ignore
-
 export interface AuthData {
   message: string;
   signature: string;
@@ -35,20 +33,31 @@ export interface SiweChallengeData {
 
 const NONCE_TABLE_NAME = "Nonce";
 
+export const NONCE_TABLE_SCHEMA = {
+  className: NONCE_TABLE_NAME,
+  fields: {
+    objectId: { type: "String" },
+    createdAt: { type: "Date" },
+    updatedAt: { type: "Date" },
+    ACL: { type: "ACL" },
+    nonce: { type: "String" },
+    expirationTime: { type: "Date" },
+  },
+  classLevelPermissions: {
+    find: {},
+    count: {},
+    get: {},
+    create: {},
+    update: {},
+    delete: {},
+    addField: {},
+    protectedFields: {},
+  },
+  indexes: { _id_: { _id: 1 } },
+};
+
 export class SiweAdapter {
-  constructor(preventReplay: boolean, applicationId: string, mounthPath: string) {
-    if (preventReplay) {
-      setTimeout(() => {
-        setupNonceTable(applicationId, mounthPath)
-          .then(() => {
-            console.log("SIWE-AUTH-ADAPTER", "Nonce table setup complete");
-          })
-          .catch((err) => {
-            console.log("SIWE-AUTH-ADAPTER", err);
-          });
-      }, 3000);
-    }
-  }
+  constructor() {}
 
   async validateAuthData(authData: AuthData, { options }: SiweAdapterOptions) {
     const { message, signature, nonce } = authData;
@@ -168,8 +177,7 @@ function getExpirationTime(messageValidityInMs: number) {
   return expirationTime;
 }
 
-async function setupNonceTable(applicationId: string, mounthPath: string) {
-  const config = Config.get(applicationId, mounthPath);
+export async function setupNonceTable(config: any) {
   const schema = await config.database.loadSchema();
   console.log("SIWE-AUTH-ADAPTER", "Creating Nonce class ...");
   try {
@@ -202,11 +210,7 @@ async function setupNonceTable(applicationId: string, mounthPath: string) {
 
 export function initializeSiweAdapter(options: SiweOptions) {
   return {
-    module: new SiweAdapter(
-      options.preventReplay,
-      options.applicationId,
-      options.mounthPath
-    ),
+    module: new SiweAdapter(),
     options,
   };
 }

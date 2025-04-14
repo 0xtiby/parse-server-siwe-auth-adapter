@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "ethers": "^6.12.1",
-    "parse-server": "^7.0.0",
+    "parse-server": "^8.0.0",
     "siwe": "^2.3.2"
   }
 }

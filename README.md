@@ -37,8 +37,6 @@ const siweOptions = {
   version: "1",
   preventReplay: true,
   messageValidityInMs: 60000, // 1 minute
-  applicationId: "YOUR_APP_ID",
-  mounthPath: "/parse",
 };
 
 const siweAdapter = initializeSiweAdapter(siweOptions);
@@ -110,7 +108,38 @@ The `preventReplay` option in the SIWE Auth Adapter plays a crucial role in enha
 
 ### Table setup
 
-The `Nonce` table is set up automatically with fields for the nonce string and its expiration time when the option `preventReplay` is set to `true`. Class-Level Permissions (CLP) are configured to restrict direct access to this table, ensuring that nonce management is securely handled through server-side logic.
+If the `preventReplay` option is set to `true`, you **must** manually set up the required `Nonce` table after initializing your Parse Server instance. The adapter exports a function `setupNonceTable` for this purpose. This function requires the Parse Server configuration object for the specific application.
+
+You typically call `setupNonceTable` after your `ParseServer` instance has been created or started. You need to provide the configuration object obtained via `Config.get()`.
+
+Here's an example within an async function that sets up an Express app and Parse Server:
+
+```typescript
+import express, { type Express, json } from "express";
+
+import ParseServer from "parse-server";
+
+import { parseConfig } from "./config/parse";
+
+import { registerClasses } from "@workspace/shared/classes";
+import { setupNonceTable } from "parse-server-siwe-auth-adapter";
+import Config from "parse-server/lib/Config";
+
+export const createServer = async (): Promise<Express> => {
+  const app = express();
+  const server = new ParseServer(parseConfig);
+
+  await server.start();
+
+  setupNonceTable(Config.get(parseConfig.appId, parseConfig.mountPath));
+
+  return app;
+};
+```
+
+This function creates the `Nonce` class with the necessary fields (`nonce`, `expirationTime`) and sets appropriate Class-Level Permissions (CLP) to restrict direct client access, ensuring nonce management is handled securely by the server.
+
+For advanced users or for manual schema management, the required schema definition is also exported as `NONCE_TABLE_SCHEMA`.
 
 This approach effectively mitigates the risk of replay attacks, where an attacker could try to reuse a previously intercepted authentication message to gain unauthorized access.
 
