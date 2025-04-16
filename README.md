@@ -25,8 +25,6 @@ To use the SIWE Auth Adapter in your Parse Server, configure it in the authentic
 - **version**: The version of the SIWE message format being used. Example: `"1"`.
 - **preventReplay**: Boolean flag to enable nonce generation and verification to prevent replay attacks. Example: `true`.
 - **messageValidityInMs**: The validity duration of the message in milliseconds. Example: `60000` (which is equivalent to 1 minute).
-- **applicationId**: The application ID for which the adapter is configured, typically the Parse Server application ID. Example: `"YOUR_APP_ID"`.
-- **mounthPath**: The path where the Parse Server is mounted. Example: `"/parse"`.
 
 ```ts
 const { initializeSiweAdapter } = require("parse-server-siwe-auth-adapter");
@@ -99,6 +97,64 @@ const login = async () => {
 };
 ```
 
+## Challenge Data
+
+The `challengeData` object is sent to the Parse Server's `/challenge` endpoint to initiate SIWE authentication. It allows users to choose between two methods: receiving a full SIWE message (server-generated) or a nonce with metadata (client-generated).
+
+### Structure
+
+The `challengeData` object must include the following fields under the `siwe` key:
+
+- **address** (`string`): The user's Ethereum address (e.g., `"0x1234567890abcdef1234567890abcdef12345678"`).
+- **uri** (`string`): The application's URI (e.g., `"https://example.com/login"`).
+- **chainId** (`number`): The Ethereum chain ID (e.g., `1` for Mainnet).
+- **responseType** (`string`, optional): Specifies the response type. Options:
+  - `"siwe-message"` (default): Server returns a complete SIWE message to sign.
+  - `"nonce-expiration"`: Server returns a nonce and metadata for the client to build the SIWE message.
+
+### Response
+
+- **For** `responseType: "siwe-message"`:
+
+  - Returns a fully formatted SIWE message and nonce.
+  - Example:
+
+    ```json
+    {
+      "challengeData": {
+        "siwe": {
+          "message": "example.com wants you to sign in with your Ethereum account...\nNonce: abc123\nExpiration Time: 2025-04-16T12:01:00.000Z",
+          "nonce": "abc123"
+        }
+      }
+    }
+    ```
+
+- **For** `responseType: "nonce-expiration"`:
+
+  - Returns a nonce, expiration time, domain, chainId, and uri for the client to construct the SIWE message.
+  - Example:
+
+    ```json
+    {
+      "challengeData": {
+        "siwe": {
+          "nonce": "abc123",
+          "expirationTime": "2025-04-16T12:01:00.000Z",
+          "domain": "example.com",
+          "chainId": 1,
+          "uri": "https://example.com/login"
+        }
+      }
+    }
+    ```
+
+### Notes
+
+- Use `"siwe-message"` for simplicity, as the server provides a ready-to-sign message.
+- Use `"nonce-expiration"` when the client needs to construct the SIWE message, ensuring `statement` and `version` match the server configuration.
+- The server validates all fields for security.
+
 ## Prevent Replay Attack
 
 The `preventReplay` option in the SIWE Auth Adapter plays a crucial role in enhancing security by preventing the reuse of authentication messages. When this option is enabled, the adapter performs the following operations:
@@ -142,6 +198,19 @@ This function creates the `Nonce` class with the necessary fields (`nonce`, `exp
 For advanced users or for manual schema management, the required schema definition is also exported as `NONCE_TABLE_SCHEMA`.
 
 This approach effectively mitigates the risk of replay attacks, where an attacker could try to reuse a previously intercepted authentication message to gain unauthorized access.
+
+#### Cleanup
+
+You can import the `cleanup` function inside a cloud job to clean up Nonce table.
+
+```typescript
+import { cleanupNonceTable } from "parse-server-siwe-auth-adapter";
+
+Parse.Cloud.job("cleanupNonceTable", async (request) => {
+  await cleanupNonceTable();
+  return "Expired nonces cleaned";
+});
+```
 
 ## Contributing
 

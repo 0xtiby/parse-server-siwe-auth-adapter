@@ -2,6 +2,7 @@
 /* global Parse */
 
 import { SiweErrorType, SiweMessage, generateNonce } from "siwe";
+import { isAddress } from "viem";
 
 export interface AuthData {
   message: string;
@@ -16,8 +17,6 @@ export interface SiweOptions {
   version: string;
   preventReplay: boolean;
   messageValidityInMs: number;
-  applicationId: string;
-  mounthPath: string;
 }
 
 export interface SiweAdapterOptions {
@@ -29,6 +28,7 @@ export interface SiweChallengeData {
   address: string;
   uri: string;
   chainId: number;
+  responseType?: "nonce-expiration" | "message";
 }
 
 const NONCE_TABLE_NAME = "Nonce";
@@ -53,7 +53,7 @@ export const NONCE_TABLE_SCHEMA = {
     addField: {},
     protectedFields: {},
   },
-  indexes: { _id_: { _id: 1 } },
+  indexes: { _id_: { _id: 1 }, nonce: { nonce: 1 } },
 };
 
 export class SiweAdapter {
@@ -61,14 +61,26 @@ export class SiweAdapter {
 
   async validateAuthData(authData: AuthData, { options }: SiweAdapterOptions) {
     const { message, signature, nonce } = authData;
+    const { domain, statement, version, preventReplay } = options;
+
     const SIWEObject = new SiweMessage(message);
+
+    if (SIWEObject.domain !== domain) {
+      throw new Parse.Error(Parse.Error.OBJECT_NOT_FOUND, "Invalid domain");
+    }
+    if (SIWEObject.statement !== statement) {
+      throw new Parse.Error(Parse.Error.OBJECT_NOT_FOUND, "Invalid statement");
+    }
+    if (SIWEObject.version !== version) {
+      throw new Parse.Error(Parse.Error.OBJECT_NOT_FOUND, "Invalid version");
+    }
 
     try {
       await SIWEObject.verify({
         signature,
         nonce,
       });
-      if (options.preventReplay) {
+      if (preventReplay) {
         const query = new Parse.Query(NONCE_TABLE_NAME);
         query.equalTo("nonce", nonce);
         query.greaterThan("expirationTime", new Date());
@@ -101,8 +113,16 @@ export class SiweAdapter {
     authData: unknown,
     { options }: SiweAdapterOptions
   ) {
-    const { address, uri, chainId } = challengeData;
+    const { address, uri, chainId, responseType } = challengeData;
     const { domain, statement, version, preventReplay } = options;
+
+    if (!Number.isInteger(chainId) || chainId <= 0) {
+      throw new Parse.Error(Parse.Error.INVALID_JSON, "Invalid chainId");
+    }
+
+    if (!isAddress(address)) {
+      throw new Parse.Error(Parse.Error.INVALID_JSON, "Invalid Ethereum address");
+    }
 
     const nonce = generateNonce();
     const expirationTime = getExpirationTime(options.messageValidityInMs);
@@ -113,17 +133,24 @@ export class SiweAdapter {
       await nonceObject.save({}, { useMasterKey: true });
     }
 
-    const message = new SiweMessage({
-      domain,
-      statement,
-      version,
-      address,
-      nonce,
-      uri,
-      chainId,
-      expirationTime: expirationTime.toISOString(),
-    });
-    return { message: message.prepareMessage(), nonce };
+    if (responseType && responseType === "nonce-expiration") {
+      return {
+        nonce,
+        expirationTime: expirationTime.toISOString(),
+      };
+    } else {
+      const message = new SiweMessage({
+        domain,
+        statement,
+        version,
+        address,
+        nonce,
+        uri,
+        chainId,
+        expirationTime: expirationTime.toISOString(),
+      });
+      return { message: message.prepareMessage(), nonce };
+    }
   }
 
   validateOptions(options: SiweAdapterOptions): void {
@@ -150,13 +177,6 @@ export class SiweAdapter {
       siweOptions.messageValidityInMs <= 0
     ) {
       throw new Error("Invalid or missing message validity time");
-    }
-
-    if (!siweOptions.applicationId || typeof siweOptions.applicationId !== "string") {
-      throw new Error("Invalid or missing applicationId");
-    }
-    if (!siweOptions.mounthPath || typeof siweOptions.mounthPath !== "string") {
-      throw new Error("Invalid or missing mounthPath");
     }
 
     // Validate that module is an instance of SiweAdapter if needed
@@ -213,4 +233,12 @@ export function initializeSiweAdapter(options: SiweOptions) {
     module: new SiweAdapter(),
     options,
   };
+}
+
+export async function cleanupNonceTable() {
+  const query = new Parse.Query(NONCE_TABLE_NAME);
+  query.lessThan("expirationTime", new Date());
+  const expiredNonces = await query.find({ useMasterKey: true });
+  await Parse.Object.destroyAll(expiredNonces, { useMasterKey: true });
+  return "Expired nonces cleaned";
 }
