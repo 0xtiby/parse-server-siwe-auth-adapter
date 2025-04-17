@@ -24,12 +24,16 @@ export interface SiweAdapterOptions {
   module: SiweAdapter;
 }
 
-export interface SiweChallengeData {
-  address: string;
-  uri: string;
-  chainId: number;
-  responseType?: "nonce-expiration" | "message";
-}
+export type SiweChallengeData =
+  | {
+      responseType: "message";
+      address: string;
+      uri: string;
+      chainId: number;
+    }
+  | {
+      responseType: "nonce-expiration";
+    };
 
 const NONCE_TABLE_NAME = "Nonce";
 
@@ -113,19 +117,24 @@ export class SiweAdapter {
     authData: unknown,
     { options }: SiweAdapterOptions
   ) {
-    const { address, uri, chainId, responseType } = challengeData;
     const { domain, statement, version, preventReplay } = options;
-
-    if (!Number.isInteger(chainId) || chainId <= 0) {
-      throw new Parse.Error(Parse.Error.INVALID_JSON, "Invalid chainId");
-    }
-
-    if (!isAddress(address)) {
-      throw new Parse.Error(Parse.Error.INVALID_JSON, "Invalid Ethereum address");
-    }
-
     const nonce = generateNonce();
     const expirationTime = getExpirationTime(options.messageValidityInMs);
+
+    if (challengeData.responseType === "message") {
+      if (!Number.isInteger(challengeData.chainId) || challengeData.chainId <= 0) {
+        throw new Parse.Error(Parse.Error.INVALID_JSON, "Invalid chainId");
+      }
+
+      if (!isAddress(challengeData.address)) {
+        throw new Parse.Error(Parse.Error.INVALID_JSON, "Invalid Ethereum address");
+      }
+
+      if (!challengeData.uri) {
+        throw new Parse.Error(Parse.Error.INVALID_JSON, "URI is required");
+      }
+    }
+
     if (preventReplay) {
       const nonceObject = new Parse.Object(NONCE_TABLE_NAME);
       nonceObject.set("nonce", nonce);
@@ -133,12 +142,13 @@ export class SiweAdapter {
       await nonceObject.save({}, { useMasterKey: true });
     }
 
-    if (responseType && responseType === "nonce-expiration") {
+    if (challengeData.responseType === "nonce-expiration") {
       return {
         nonce,
         expirationTime: expirationTime.toISOString(),
       };
     } else {
+      const { address, uri, chainId } = challengeData;
       const message = new SiweMessage({
         domain,
         statement,
