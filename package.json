@@ -18,7 +18,10 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsup ./src"
+    "build": "tsup ./src",
+    "release:patch": "pnpm version patch && git push && git push --tags && pnpm build && pnpm publish",
+    "release:minor": "pnpm version minor && git push && git push --tags && pnpm build && pnpm publish",
+    "release:major": "pnpm version major && git push && git push --tags && pnpm build && pnpm publish"
   },
   "repository": {
     "type": "git",

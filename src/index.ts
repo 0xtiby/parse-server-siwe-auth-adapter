@@ -217,6 +217,8 @@ export async function setupNonceTable(config: any) {
     });
     console.log("SIWE-AUTH-ADAPTER", "Nonce class created, setting CLP ...");
 
+    await schema.addIndex("nonce_idx", { nonce: 1 });
+
     await schema.setPermissions(NONCE_TABLE_NAME, {
       get: {},
       find: {},
