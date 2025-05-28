@@ -57,7 +57,7 @@ export const NONCE_TABLE_SCHEMA = {
     addField: {},
     protectedFields: {},
   },
-  indexes: { _id_: { _id: 1 }, nonce: { nonce: 1 } },
+  indexes: { _id_: { _id: 1 }, nonce_idx: { nonce: 1 } },
 };
 
 export class SiweAdapter {
@@ -207,39 +207,39 @@ function getExpirationTime(messageValidityInMs: number) {
   return expirationTime;
 }
 
-export async function setupNonceTable(config: any) {
-  const schema = await config.database.loadSchema();
-  console.log("SIWE-AUTH-ADAPTER", "Creating Nonce class ...");
+export async function setupNonceTable(): Promise<void> {
   try {
-    await schema.addClassIfNotExists(NONCE_TABLE_NAME, {
-      nonce: { type: "String" },
-      expirationTime: { type: "Date" },
-    });
-    console.log("SIWE-AUTH-ADAPTER", "Nonce class created, setting CLP ...");
+    const schema = new Parse.Schema(NONCE_TABLE_NAME);
 
-    await schema.addIndex("nonce_idx", { nonce: 1 });
-
-    await schema.setPermissions(NONCE_TABLE_NAME, {
-      get: {},
-      find: {},
-      create: {},
-      update: {},
-      delete: {},
-      addField: {},
-    });
-    console.log("SIWE-AUTH-ADAPTER", "Nonce CLP set");
-  } catch (err) {
-    if (err instanceof Error) {
-      console.log("SIWE-AUTH-ADAPTER", err.message);
-    } else {
+    try {
+      await schema.get();
       console.log(
-        "SIWE-AUTH-ADAPTER",
-        "An error occurred, but it could not be interpreted as an Error object."
+        `SIWE-AUTH-ADAPTER: Schema for class ${NONCE_TABLE_NAME} already exists.`
+      );
+    } catch (getSchemaError: any) {
+      console.log(
+        `SIWE-AUTH-ADAPTER: Schema for class ${NONCE_TABLE_NAME} not found. Creating...`
+      );
+
+      schema.addString("nonce");
+      schema.addDate("expirationTime");
+      schema.addIndex("nonce_idx", { nonce: 1 });
+      schema.setCLP({});
+
+      await schema.save();
+      console.log(
+        `SIWE-AUTH-ADAPTER: Schema for class ${NONCE_TABLE_NAME} created successfully.`
       );
     }
+  } catch (err: any) {
+    console.error(
+      "SIWE-AUTH-ADAPTER: Error during schema setup for",
+      NONCE_TABLE_NAME,
+      ":",
+      err.message || err
+    );
   }
 }
-
 export function initializeSiweAdapter(options: SiweOptions) {
   return {
     module: new SiweAdapter(),
